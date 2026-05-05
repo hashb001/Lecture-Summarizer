@@ -83,10 +83,9 @@ def create_session(
     slides_payload: list[dict] | None = None,
     user_id: int | None = None,
 ) -> str:
-    """Create a new lecture session both in memory and in the database."""
+    
     sid = str(uuid.uuid4())
 
-    # Save to DB
     db = SessionLocal()
     try:
         db_sess = LectureSession(
@@ -101,8 +100,9 @@ def create_session(
     finally:
         db.close()
 
-    # Also keep in memory for chat_history
+    
     sessions[sid] = {
+        "user_id": user_id,
         "pptx_text": pptx_text,
         "summary": summary_text,
         "slides": slides_payload or [],
@@ -111,7 +111,7 @@ def create_session(
     return sid
 
 def get_session(session_id: str) -> dict | None:
-    """Get a session from memory or database."""
+    
     if session_id in sessions:
         return sessions[session_id]
 
@@ -120,8 +120,9 @@ def get_session(session_id: str) -> dict | None:
         db_sess = db.query(LectureSession).filter(LectureSession.id == session_id).first()
         if not db_sess:
             return None
-        # Reconstruct in-memory copy (no chat history persisted yet)
+        
         sess = {
+            "user_id": db_sess.user_id,
             "pptx_text": db_sess.pptx_text,
             "summary": db_sess.summary_text or "",
             "slides": db_sess.slides_payload or [],

@@ -1,14 +1,16 @@
-
 const API_BASE = window.location.origin;
 
 let sessionId = null;
+let lectureText = "";
+const TOKEN_KEY = "ai_lecture_token";
+const CHATS_KEY = "ai_lecture_chats";
+
+// Load chats from localStorage so they survive page refresh
 let chats = [];
+try { chats = JSON.parse(localStorage.getItem(CHATS_KEY) || "[]"); } catch (_) { chats = []; }
+
 let currentChat = { id: Date.now(), title: "New Chat", messages: [] };
-let authToken = localStorage.getItem("als_token") || "";
-let currentUser = null;
-let courses = [];
-let selectedCourseId = Number(localStorage.getItem("als_course_id")) || null;
-let savedSummaries = [];
+
 
 const messagesDiv = document.getElementById("messages");
 const sendBtn = document.getElementById("sendBtn");
@@ -16,23 +18,18 @@ const userInput = document.getElementById("userInput");
 const fileInput = document.getElementById("fileInput");
 const chatHistory = document.getElementById("chatHistory");
 const newChatBtn = document.getElementById("newChatBtn");
+
 const progressBox = document.getElementById("progress");
 const progressBar = document.getElementById("progress-bar");
 const progressTxt = document.getElementById("progress-text");
 
-const authPanel = document.getElementById("authPanel");
-const authFields = document.getElementById("authFields");
 const authStatus = document.getElementById("authStatus");
 const authNameInput = document.getElementById("authName");
 const authEmailInput = document.getElementById("authEmail");
 const authPasswordInput = document.getElementById("authPassword");
-const signupBtn = document.getElementById("signupBtn");
+const registerBtn = document.getElementById("registerBtn");
 const loginBtn = document.getElementById("loginBtn");
 const logoutBtn = document.getElementById("logoutBtn");
-if (authEmailInput) authEmailInput.value = "";
-if (authPasswordInput) authPasswordInput.value = "";
-if (authNameInput) authNameInput.value = "";
-if (userInput) userInput.value = "";
 
 const coursePanel = document.getElementById("coursePanel");
 const courseSelect = document.getElementById("courseSelect");
@@ -42,32 +39,78 @@ const createCourseBtn = document.getElementById("createCourseBtn");
 
 const summaryList = document.getElementById("summaryList");
 const summaryEmpty = document.getElementById("summaryEmpty");
-const themeToggle = document.getElementById("themeToggle");
-const savedTheme = localStorage.getItem("als_theme") || "light";
-if (savedTheme === "dark") {
-  document.body.classList.add("dark");
-}
+
 const assignmentList = document.getElementById("assignmentList");
-const quizList = document.getElementById("quizList");
 const assignmentEmpty = document.getElementById("assignmentEmpty");
+
+const quizList = document.getElementById("quizList");
 const quizEmpty = document.getElementById("quizEmpty");
 
-let isSignupMode = false;
-document.addEventListener("click", async (e) => {
+const themeToggle = document.getElementById("themeToggle");
 
-  if (e.target.classList.contains("generateQuizBtn")) {
-    await createQuiz();
-  }
 
-  if (e.target.classList.contains("generateAssignmentBtn")) {
-    await createAssignment();
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function setToken(token) {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+}
+
+function setAuthBusy(isBusy) {
+  registerBtn.disabled = isBusy;
+  loginBtn.disabled = isBusy;
+  logoutBtn.disabled = isBusy;
+  authNameInput.disabled = isBusy;
+  authEmailInput.disabled = isBusy;
+  authPasswordInput.disabled = isBusy;
+}
+
+async function apiFetch(path, options = {}) {
+  const token = getToken();
+  const headers = new Headers(options.headers || {});
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
   }
-});
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  let data = null;
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) data = await res.json();
+  else data = await res.text();
+
+  if (!res.ok) {
+    const msg = (data && data.detail) ? data.detail : (typeof data === "string" ? data : "Request failed");
+    throw new Error(msg);
+  }
+  return data;
+}
+
 function setProgress(pct, text) {
   progressBox.classList.remove("hidden");
-  progressBar.innerHTML = `<div style="width:${pct}%;height:100%;background:#2563eb;transition:width .2s"></div>`;
-  progressTxt.textContent = text;
-  if (pct >= 100) setTimeout(() => progressBox.classList.add("hidden"), 900);
+  progressTxt.textContent = text || "";
+  if (!progressBar.querySelector(".bar")) {
+    progressBar.innerHTML = `<div class="bar"></div>`;
+  }
+  progressBar.querySelector(".bar").style.width = `${pct}%`;
+  if (pct >= 100) setTimeout(() => progressBox.classList.add("hidden"), 600);
+}
+
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[m]));
+}
+
+function appendMessage(text, sender) {
+  const msg = document.createElement("div");
+  msg.className = `message ${sender}`;
+  // keep it safe for user text; AI text may include simple formatting
+  msg.innerHTML = sender === "user" ? escapeHtml(text) : text;
+  messagesDiv.appendChild(msg);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
 function renderSlideCard(page, title, bullets) {
@@ -78,7 +121,7 @@ function renderSlideCard(page, title, bullets) {
   h.innerHTML = `📑 <strong>Slide ${page}:</strong> ${escapeHtml(title || "")}`;
   const ul = document.createElement("ul");
   ul.className = "slide-bullets";
-  bullets.forEach((b) => {
+  (bullets || []).forEach((b) => {
     const li = document.createElement("li");
     li.textContent = b;
     ul.appendChild(li);
@@ -88,808 +131,388 @@ function renderSlideCard(page, title, bullets) {
   messagesDiv.appendChild(wrapper);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
-function highlightSlides(pages) {
-  const pageSet = new Set(pages.map(Number));
-  document.querySelectorAll(".slide-card").forEach((card) => {
-    const titleEl = card.querySelector(".slide-title");
-    if (!titleEl) return;
-    const m = titleEl.textContent.match(/Slide\s+(\d+)/i);
-    const page = m ? Number(m[1]) : null;
-    if (page && pageSet.has(page)) {
-      card.classList.add("slide-highlight");
-      setTimeout(() => card.classList.remove("slide-highlight"), 1500);
-    }
-  });
-}
-function escapeHtml(s) {
-  return (
-    s?.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m])) || ""
-  );
-}
-
-function appendMessage(text, sender) {
-  const msg = document.createElement("div");
-  msg.classList.add("message", sender);
-  let formatted = text
-    .replace(/\*\*Slide (\d+): (.*?)\*\*/g, '<br><strong style="font-size:1.1em">📑 Slide $1: $2</strong><br>')
-    .replace(/\n•\s/g, "<br>• ")
-    .replace(/\n/g, "<br>");
-  msg.innerHTML = formatted;
-  messagesDiv.appendChild(msg);
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  document.getElementById("chat-container").classList.add("has-messages");
-}
-
-function saveMessage(text, sender) {
-  currentChat.messages.push({ text, sender });
-  if (!chats.includes(currentChat)) chats.push(currentChat);
-  refreshChatList();
-}
 
 function refreshChatList() {
   chatHistory.innerHTML = "";
-  chats.forEach((chat) => {
+  chats.forEach((c) => {
     const li = document.createElement("li");
-    li.textContent = chat.title;
-    li.title = chat.title;
-    li.onclick = () => loadChat(chat.id);
+    li.textContent = c.title || "Chat";
+    li.onclick = () => {
+      currentChat = c;
+      messagesDiv.innerHTML = "";
+      c.messages.forEach((m) => appendMessage(m.text, m.sender));
+    };
     chatHistory.appendChild(li);
   });
 }
 
-function loadChat(id) {
-  const chat = chats.find((c) => c.id === id);
-  if (!chat) return;
-  currentChat = chat;
-  messagesDiv.innerHTML = "";
-  chat.messages.forEach((m) => appendMessage(m.text, m.sender));
-}
-
-function setAuthToken(token) {
-  authToken = token;
-  if (token) {
-    localStorage.setItem("als_token", token);
-  } else {
-    localStorage.removeItem("als_token");
-  }
-}
-
-function updateAuthUI() {
-  if (currentUser) {
-    authStatus.textContent = `Signed in as ${
-      currentUser.full_name || currentUser.email
-    }`;
-
-    authPanel.classList.add("logged-in");
-    if (authFields) authFields.style.display = "none";
-    logoutBtn.classList.remove("hidden");
-    coursePanel.classList.remove("hidden");
-  } else {
-    authStatus.textContent = "Guest mode (sign in to save summaries)";
-
-    authPanel.classList.remove("logged-in");
-    if (authFields) authFields.style.display = "block";
-    logoutBtn.classList.add("hidden");
-    coursePanel.classList.add("hidden");
-  }
-
-  summaryEmpty.textContent = currentUser
-    ? "Pick a course to see saved summaries."
-    : "Log in to view saved summaries.";
+function saveMessage(text, sender) {
+  currentChat.messages.push({ text, sender });
+  if (!chats.find((c) => c.id === currentChat.id)) chats.unshift(currentChat);
+  // Keep only last 30 chats to avoid bloat
+  if (chats.length > 30) chats = chats.slice(0, 30);
+  try { localStorage.setItem(CHATS_KEY, JSON.stringify(chats)); } catch (_) { }
+  refreshChatList();
 }
 
 
-async function refreshAuthState() {
-  authToken = localStorage.getItem("als_token") || null;
-  currentUser = null;
-
-  if (!authToken) {
-    authPanel.classList.remove("logged-in");
-    authStatus.textContent = "Guest mode (sign in to save summaries)";
-    if (authFields) authFields.style.display = "block";
-    return;
-  }
-
-  try {
-    const res = await fetch(`${API_BASE}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${authToken}` },
-    });
-    if (!res.ok) throw new Error("unauthorized");
-    const data = await res.json();
-    currentUser = data;
-
-    // 🔹 keep whatever selectedCourseId is already set to
-    authStatus.textContent = `Signed in as ${
-      currentUser.full_name || currentUser.email
-    }`;
-    authPanel.classList.add("logged-in");
-    if (authFields) authFields.style.display = "none";
-  } catch (e) {
-    authToken = null;
-    localStorage.removeItem("als_token");
-    currentUser = null;
-    authPanel.classList.remove("logged-in");
-    authStatus.textContent = "Guest mode (sign in to save summaries)";
-    if (authFields) authFields.style.display = "block";
-  }
+function showAuthInputs() {
+  authNameInput.classList.remove("hidden");
+  authEmailInput.classList.remove("hidden");
+  authPasswordInput.classList.remove("hidden");
+  registerBtn.classList.remove("hidden");
+  loginBtn.classList.remove("hidden");
 }
 
-
-
-
-async function registerUser() {
-  const payload = {
-    full_name: authNameInput.value.trim() || null,
-    email: authEmailInput.value.trim(),
-    password: authPasswordInput.value.trim(),
-  };
-  if (!payload.email || !payload.password) {
-    appendMessage("⚠️ Email and password are required to register.", "ai");
-    return;
-  }
-  const res = await fetch("/api/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    appendMessage(`❌ ${data.detail || "Could not register"}`, "ai");
-    return;
-  }
-  appendMessage("✅ Account created. You can log in now.", "ai");
+function hideAuthInputs() {
+  authNameInput.classList.add("hidden");
+  authEmailInput.classList.add("hidden");
+  authPasswordInput.classList.add("hidden");
+  registerBtn.classList.add("hidden");
+  loginBtn.classList.add("hidden");
 }
 
-async function loginUser() {
-  const payload = {
-    email: authEmailInput.value.trim(),
-    password: authPasswordInput.value.trim(),
-  };
-  if (!payload.email || !payload.password) {
-    appendMessage("⚠️ Email and password are required to log in.", "ai");
-    return;
-  }
-
-  const res = await fetch("/api/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    appendMessage(`❌ ${data.detail || "Invalid login"}`, "ai");
-    return;
-  }
-
-  setAuthToken(data.access_token);
+function clearAuthInputs() {
+  authNameInput.value = "";
+  authEmailInput.value = "";
   authPasswordInput.value = "";
-
-  // set currentUser
-  await refreshAuthState();
-  // load user's courses
-  await fetchCourses();
-  // update UI (shows course panel, logout button, hides auth form)
-  updateAuthUI();
-
-  appendMessage(
-    "✅ Logged in. Choose or create a course to save summaries.",
-    "ai"
-  )
 }
 
-
-
-function logoutUser() {
-  setAuthToken("");
-  currentUser = null;
-  courses = [];
-  selectedCourseId = null;
-  localStorage.removeItem("als_course_id");
-  updateAuthUI();
-  appendMessage("👋 Logged out. Summaries will no longer be saved.", "ai");
+function setGuestUI() {
+  authStatus.innerHTML = `<strong>Guest mode (sign in to save summaries)</strong>`;
+  showAuthInputs();
+  coursePanel.classList.add("hidden");
+  logoutBtn.classList.add("hidden");
 }
 
-async function fetchCourses() {
-  if (!currentUser) return;
-  const res = await fetch("/api/courses", {
-    headers: { Authorization: `Bearer ${authToken}` },
-  });
-  if (!res.ok) return;
-  courses = await res.json();
-  populateCourseSelect();
-  if (courses.length && !selectedCourseId) {
-    setSelectedCourse(courses[0].id);
-  } else if (selectedCourseId) {
-    const exists = courses.some((c) => c.id === Number(selectedCourseId));
-    if (!exists) {
-      setSelectedCourse(courses[0]?.id || null);
-    } else {
-      await fetchSummaries();
-    }
-  }
-}
-async function createQuiz() {
-  if (!currentUser || !selectedCourseId) {
-    appendMessage("⚠️ You must log in and select a course first.", "ai");
-    return;
-  }
-  if (!sessionId) {
-    appendMessage("⚠️ Upload and summarize a lecture first.", "ai");
-    return;
-  }
-
-  // 1. Get context for this session
-  const resCtx = await fetch(`/api/debug/session/${sessionId}`);
-  const sessData = await resCtx.json();
-  const text = sessData.summary || sessData.pptx_text_preview || "";
-  if (!text.trim()) {
-    appendMessage("⚠️ Could not load lecture content for this session.", "ai");
-    return;
-  }
-
-  // 2. Build headers (include token!)
-  const headers = { "Content-Type": "application/json" };
-  if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`;
-  }
-
-  // 3. Call quiz endpoint
-  const res = await fetch(`/api/quizzes/${selectedCourseId}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ session_text: text }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    appendMessage(
-      `❌ Failed to generate quiz: ${err.detail || res.statusText}`,
-      "ai"
-    );
-    return;
-  }
-
-  const data = await res.json();
-  appendMessage("📝 Quiz generated:\n\n" + data.content, "ai");
-
-  // 4. Refresh quiz list in the sidebar
-  loadQuizzes(selectedCourseId);
+function setUserUI(user) {
+  authStatus.innerHTML = `<strong>Signed in:</strong> ${escapeHtml(user.email)}${user.full_name ? ` <span class="muted">(${escapeHtml(user.full_name)})</span>` : ""}`;
+  hideAuthInputs();
+  clearAuthInputs();
+  coursePanel.classList.remove("hidden");
+  logoutBtn.classList.remove("hidden");
 }
 
-
-
-async function createAssignment() {
-  if (!currentUser || !selectedCourseId) {
-    appendMessage("⚠️ You must log in and select a course first.", "ai");
-    return;
+async function refreshMe() {
+  const token = getToken();
+  if (!token) {
+    setGuestUI();
+    return null;
   }
-  if (!sessionId) {
-    appendMessage("⚠️ Upload and summarize a lecture first.", "ai");
-    return;
-  }
-
-  // Fetch context from backend debug endpoint (same idea as createQuiz)
-  const resCtx = await fetch(`/api/debug/session/${sessionId}`);
-  const sessData = await resCtx.json();
-  const text = sessData.summary || sessData.pptx_text_preview || "";
-  if (!text.trim()) {
-    appendMessage("⚠️ Could not load lecture content for this session.", "ai");
-    return;
-  }
-
-  const headers = { "Content-Type": "application/json" };
-  if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`;
-  }
-
-  const res = await fetch(`/api/assignments/${selectedCourseId}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ session_text: text }),
-  });
-
-
-  const data = await res.json();
-
-  appendMessage("📘 Assignment generated:\n\n" + data.content, "ai");
-
-  loadAssignments(selectedCourseId);
-}
-
-async function loadAssignments(courseId) {
-  if (!courseId) return;
-
-  const headers = {};
-  if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`;
-  }
-
-  const res = await fetch(`/api/courses/${courseId}/assignments`, { headers });
-  const assignments = await res.json();
-
-  if (!assignments.length) {
-    assignmentList.innerHTML = "";
-    if (assignmentEmpty) assignmentEmpty.style.display = "block";
-    return;
-  }
-  if (assignmentEmpty) assignmentEmpty.style.display = "none";
-
-  assignmentList.innerHTML = assignments
-    .map((a) => `<li>${a.title}</li>`)
-    .join("");
-}
-
-
-
-async function loadQuizzes(courseId) {
-  if (!courseId) return;
-
-  const headers = {};
-  if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`;
-  }
-
-  const res = await fetch(`/api/courses/${courseId}/quizzes`, { headers });
-  const quizzes = await res.json();
-
-  if (!quizzes.length) {
-    quizList.innerHTML = "";
-    if (quizEmpty) quizEmpty.style.display = "block";
-    return;
-  }
-  if (quizEmpty) quizEmpty.style.display = "none";
-
-  quizList.innerHTML = quizzes
-    .map((q) => `<li>${q.title}</li>`)
-    .join("");
-}
-
-
-
-
-function populateCourseSelect() {
-  courseSelect.innerHTML = "";
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = courses.length ? "Select a course" : "No courses yet";
-  courseSelect.appendChild(placeholder);
-  courses.forEach((course) => {
-    const option = document.createElement("option");
-    option.value = course.id;
-    option.textContent = course.subject ? `${course.name} · ${course.subject}` : course.name;
-    if (Number(course.id) === Number(selectedCourseId)) {
-      option.selected = true;
-    }
-    courseSelect.appendChild(option);
-  });
-}
-
-async function handleCreateCourse() {
-  if (!currentUser) {
-    appendMessage("⚠️ You must be logged in to create courses.", "ai");
-    return;
-  }
-  const payload = {
-    name: courseNameInput.value.trim(),
-    subject: null,
-  };
-  if (!payload.name) {
-    appendMessage("⚠️ Enter a course name first.", "ai");
-    return;
-  }
-  const res = await fetch("/api/courses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${authToken}`,
-    },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    appendMessage(`❌ ${data.detail || "Could not create course"}`, "ai");
-    return;
-  }
-  courseNameInput.value = "";
-  if (courseSubjectInput) courseSubjectInput.value = "";
-  await fetchCourses();
-  setSelectedCourse(data.id);
-  appendMessage(`✅ Course "${data.name}" created.`, "ai");
-
-}
-function deriveSubjectFromFilename(fileName) {
-  
-  let base = fileName.replace(/\.[^/.]+$/, "");
-  
-  base = base.replace(/[_-]+/g, " ").trim();
-
-  const lower = base.toLowerCase();
-  let cutIndex = lower.length;
-
-  
-  const keywords = ["chapter", "chap", "lec", "lecture", "class", "week", "session", "slide"];
-  keywords.forEach((kw) => {
-    const idx = lower.indexOf(kw);
-    if (idx !== -1 && idx < cutIndex) cutIndex = idx;
-  });
-
-  
-  const digitIdx = lower.search(/\d/);
-  if (digitIdx !== -1 && digitIdx < cutIndex) cutIndex = digitIdx;
-
-  base = base.slice(0, cutIndex).trim();
-  if (!base) base = fileName.replace(/\.[^/.]+$/, "").trim();
-
-  
-  return base
-    .split(/\s+/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
-
-async function autoCreateCourseFromFile(file) {
-  // Only when logged in and NO course is selected yet
-  if (!currentUser || selectedCourseId) return;
-
-  const subjectName = deriveSubjectFromFilename(file.name);
-
-  
-  const existing = courses.find(
-    (c) => c.name && c.name.toLowerCase() === subjectName.toLowerCase()
-  );
-  if (existing) {
-    setSelectedCourse(existing.id);
-    appendMessage(
-      `📚 Using existing course "${existing.name}" for this lecture.`,
-      "ai"
-    );
-    return;
-  }
-
-  
-  const payload = {
-    name: subjectName, // e.g. "History", "Physics"
-    subject: null,
-  };
-
   try {
-    const res = await fetch("/api/courses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      appendMessage(
-        `⚠️ Could not auto-create course: ${data.detail || "unknown error"}`,
-        "ai"
-      );
-      return;
-    }
-
-    courses.push(data);
-    populateCourseSelect();
-    setSelectedCourse(data.id);
-
-    appendMessage(
-      `📚 Created course "${data.name}" for this subject. Future "${data.name}" lectures will be saved here.`,
-      "ai"
-    );
-  } catch (err) {
-    console.error("autoCreateCourseFromFile error:", err);
+    const me = await apiFetch("/api/auth/me");
+    setUserUI(me);
+    return me;
+  } catch (e) {
+    // token invalid/expired
+    setToken(null);
+    setGuestUI();
+    return null;
   }
 }
 
 
+async function loadCourses() {
+  const me = await refreshMe();
+  if (!me) return;
 
-function setSelectedCourse(id) {
-  if (!id) {
-    selectedCourseId = null;
-    localStorage.removeItem("als_course_id");
-  } else {
-    selectedCourseId = Number(id);
-    localStorage.setItem("als_course_id", selectedCourseId);
-  }
-  if (courseSelect.value !== String(selectedCourseId || "")) {
-    courseSelect.value = String(selectedCourseId || "");
-  }
-  fetchSummaries();
-}
-
-async function fetchSummaries() {
-  if (!currentUser || !selectedCourseId) {
-    savedSummaries = [];
-    renderSummaryList();
-    return;
-  }
-  const res = await fetch(`/api/summaries?course_id=${selectedCourseId}`, {
-    headers: { Authorization: `Bearer ${authToken}` },
+  const courses = await apiFetch("/api/courses");
+  courseSelect.innerHTML = "";
+  courses.forEach((c) => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = `${c.name}${c.subject ? " — " + c.subject : ""}`;
+    courseSelect.appendChild(opt);
   });
-  if (!res.ok) {
-    savedSummaries = [];
-    renderSummaryList();
-    return;
-  }
-  savedSummaries = await res.json();
-  renderSummaryList();
+
+  await loadSummaries();
+  await loadAssignments();
+  await loadQuizzes();
 }
 
-function renderSummaryList() {
+async function loadSummaries() {
+  const courseId = courseSelect.value;
+  if (!courseId) return;
+
+  const summaries = await apiFetch(`/api/summaries?course_id=${encodeURIComponent(courseId)}`);
   summaryList.innerHTML = "";
-  if (!currentUser) {
+  if (!summaries.length) {
     summaryEmpty.classList.remove("hidden");
-    summaryEmpty.textContent =
-      "Log in and select a course to save and view summaries.";
-    return;
-  }
-
-
-
-  if (!savedSummaries.length) {
-    summaryEmpty.classList.remove("hidden");
-    summaryEmpty.textContent = selectedCourseId
-      ? "No summaries saved for this course yet."
-      : "Pick a course to see saved summaries.";
     return;
   }
   summaryEmpty.classList.add("hidden");
-  savedSummaries.forEach((summary) => {
+
+  summaries.forEach((s) => {
     const li = document.createElement("li");
-    const date = new Date(summary.created_at).toLocaleString();
-    li.innerHTML = `<strong>${escapeHtml(summary.title || "Untitled deck")}</strong><br><span>${date}</span>`;
-    li.onclick = () => showSummaryInChat(summary);
+    li.textContent = `${s.title} (${new Date(s.created_at).toLocaleString()})`;
+    li.onclick = () => {
+      messagesDiv.innerHTML = "";
+      appendMessage(`<strong>${escapeHtml(s.title)}</strong><br><br>${escapeHtml(s.summary_text || "")}`, "ai");
+    };
     summaryList.appendChild(li);
   });
 }
 
-function showSummaryInChat(summary) {
-  messagesDiv.innerHTML = "";
-  appendMessage(`📚 Saved summary: ${summary.title || "Untitled deck"}`, "ai");
-  const slides = summary.slides_payload || [];
-  slides.forEach((slide) => {
-    renderSlideCard(slide.page ?? "-", slide.title, slide.bullets || []);
-  });
-}
+async function loadAssignments() {
+  const courseId = courseSelect.value;
+  if (!courseId) return;
 
-async function persistSummary(sessionIdValue, slides, fileName) {
-  if (!currentUser || !selectedCourseId) return;
-  const payload = {
-    course_id: selectedCourseId,
-    session_id: sessionIdValue,
-    source_filename: fileName,
-    title: slides[0]?.title || fileName,
-    slides_payload: slides,
-  };
-  const res = await fetch("/api/summaries", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${authToken}`,
-    },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    appendMessage(`⚠️ Failed to save summary: ${data.detail || "unknown error"}`, "ai");
+  const items = await apiFetch(`/api/courses/${courseId}/assignments`);
+  assignmentList.innerHTML = "";
+  if (!items.length) {
+    assignmentEmpty.classList.remove("hidden");
     return;
   }
-  appendMessage(`💾 Saved summary to course "${courses.find((c) => c.id === selectedCourseId)?.name || ""}".`, "ai");
-  await fetchSummaries();
-}
+  assignmentEmpty.classList.add("hidden");
 
-async function sendToBackend({ message, file }) {
-  const formData = new FormData();
-  formData.append("message", message || "Summarize this presentation");
-
-  if (sessionId) formData.append("session_id", sessionId);
-  if (file) formData.append("file", file);
-  if (selectedCourseId) formData.append("course_id", selectedCourseId);
-
-  const headers = {};
-  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
-
-  const res = await fetch(`${API_BASE}/api/chat`, {
-    method: "POST",
-    body: formData,
-    headers,
+  items.forEach((a) => {
+    const li = document.createElement("li");
+    li.textContent = `${a.title} (${new Date(a.created_at).toLocaleString()})`;
+    li.onclick = () => {
+      messagesDiv.innerHTML = "";
+      const contentHtml = escapeHtml(a.content || "").replace(/\n/g, "<br>");
+      appendMessage(`<strong>${escapeHtml(a.title)}</strong><br><br>${contentHtml}`, "ai");
+    };
+    assignmentList.appendChild(li);
   });
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Server error (${res.status}): ${txt || "no details"}`);
-  }
-
-  const data = await res.json();
-
-  if (data.session_id) {
-    sessionId = data.session_id;
-  }
-
-  const text = data.response || data.summary || "(no response)";
-  const usedSlides = data.used_slides || [];
-
-  return { text, usedSlides };
 }
 
+async function loadQuizzes() {
+  const courseId = courseSelect.value;
+  if (!courseId) return;
+
+  const items = await apiFetch(`/api/courses/${courseId}/quizzes`);
+  quizList.innerHTML = "";
+  if (!items.length) {
+    quizEmpty.classList.remove("hidden");
+    return;
+  }
+  quizEmpty.classList.add("hidden");
+
+  items.forEach((q) => {
+    const li = document.createElement("li");
+    li.textContent = `${q.title} (${new Date(q.created_at).toLocaleString()})`;
+    li.onclick = () => {
+      messagesDiv.innerHTML = "";
+      const contentHtml = escapeHtml(q.content || "").replace(/\n/g, "<br>");
+      appendMessage(`<strong>${escapeHtml(q.title)}</strong><br><br>${contentHtml}`, "ai");
+    };
+    quizList.appendChild(li);
+  });
+}
+
+
+async function sendMessage() {
+  const txt = userInput.value.trim();
+  if (!txt) return;
+
+  appendMessage(txt, "user");
+  saveMessage(txt, "user");
+  userInput.value = "";
+
+  try {
+    const formData = new FormData();
+    formData.append("message", txt);
+    if (sessionId) formData.append("session_id", sessionId);
+
+    const res = await apiFetch("/api/chat", { method: "POST", body: formData });
+    const reply = res.response || "No response";
+    // Convert newlines to <br> so multi-line quiz/assignment content renders correctly
+    const replyHtml = escapeHtml(reply).replace(/\n/g, "<br>");
+    appendMessage(replyHtml, "ai");
+    saveMessage(reply, "ai");
+
+    if (res.session_id) sessionId = res.session_id;
+  } catch (err) {
+    const msg = `❌ ${err.message}`;
+    appendMessage(escapeHtml(msg), "ai");
+    saveMessage(msg, "ai");
+  }
+}
 
 
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files[0];
   if (!file) return;
 
-  if (selectedCourseId && !currentUser) {
-    appendMessage("⚠️ Login required to save to a course.", "ai");
-    return;
-  }
-  if (currentUser && !selectedCourseId) {
-    await autoCreateCourseFromFile(file);
-  }
-
-  setProgress(5, "Uploading & extracting slides…");
-  const form1 = new FormData();
-  form1.append("file", file);
-  const r1 = await fetch("/api/extract", { method: "POST", body: form1 });
-  const d1 = await r1.json();
-  if (d1.error) {
-    renderSlideCard("-", "Error", [d1.error]);
-    fileInput.value = "";
-    return;
-  }
-  sessionId = d1.session_id;
-  const slides = d1.slides || [];
-  messagesDiv.innerHTML = "";
-
-  const total = slides.length || 1;
-  for (let i = 0; i < slides.length; i++) {
-    setProgress(Math.round(((i + 1) / total) * 100), `Summarizing slide ${i + 1}/${total}…`);
-    const s = slides[i];
-    const form2 = new FormData();
-    form2.append("session_id", sessionId);
-    form2.append("page", s.page);
-    form2.append("title", s.title || "");
-    form2.append("text", s.text || "");
-    const r2 = await fetch("/api/summarize/slide", { method: "POST", body: form2 });
-    const d2 = await r2.json();
-    slides[i].bullets = d2.bullets || [];
-    renderSlideCard(d2.page, d2.title, d2.bullets || []);
-  }
-  setProgress(100, "Done");
-  const hint =
-    "✅ Presentation summarized!\n\n" +
-    "You can now ask things like:\n" +
-    "• Explain slide 3\n" +
-    "• What is the main idea of this lecture?\n" +
-    "• Compare slide 2 and 5\n" +
-    "• Give me a quick recap of the whole lecture";
-  appendMessage(hint, "ai"); 
-  saveMessage(hint, "ai");
-  appendMessage(`
-    <div style="margin-top: 12px;">
-      <button class="generateAssignmentBtn chat-btn">Generate Assignment</button>
-      <button class="generateQuizBtn chat-btn">Generate Quiz</button>
-    </div>
-  `, "ai", true);
-
-  saveMessage(hint, "ai");
-  if (currentChat.title === "New Chat") {
-    const baseName = file.name.replace(/\.pptx$/i, "");
-    currentChat.title = `Deck: ${baseName}`;
-    refreshChatList();
-    await refreshAuthState();
-    await fetchCourses();   // <- Required so autoCreateCourseFromFile works
-    updateAuthUI();
-
-  }
-
-  if (currentUser && selectedCourseId) {
-    await persistSummary(sessionId, slides, file.name);
-  }
-  
-  fileInput.value = "";
-});
-
-
-
-
-
-async function sendMessage() {
-  const message = userInput.value.trim();
-  const file = null;
-
-  if (!message) return;
-
-  
-  const lower = message.toLowerCase();
-  if (
-    lower.includes("generate assignment") ||
-    lower.includes("generate quiz")
-  ) {
-    return;
-  }
-
-  if (!sessionId) {
-    appendMessage("⚠️ Upload a PPTX first to ask follow-up questions.", "ai");
-    return;
-  }
-
-  appendMessage(message, "user");
-  saveMessage(message, "user");
-  userInput.value = "";
-
   try {
-    const { text, usedSlides } = await sendToBackend({ message, file });
-    appendMessage(text, "ai");
-    saveMessage(text, "ai");
+    setProgress(3, "Uploading & extracting slides…");
 
-    if (Array.isArray(usedSlides) && usedSlides.length > 0) {
-      highlightSlides(usedSlides);
+    const form1 = new FormData();
+    form1.append("file", file);
+
+    const d1 = await apiFetch("/api/extract", { method: "POST", body: form1 });
+
+    sessionId = d1.session_id;
+    const slides = d1.slides || [];
+    lectureText = slides.map((s) => s.text || "").join("\n\n");
+
+    messagesDiv.innerHTML = "";
+    const total = slides.length || 1;
+
+    for (let i = 0; i < slides.length; i++) {
+      setProgress(Math.round(((i + 1) / total) * 100), `Summarizing slide ${i + 1}/${total}…`);
+
+      const s = slides[i];
+      const form2 = new FormData();
+      form2.append("session_id", sessionId);
+      form2.append("page", s.page);
+      form2.append("title", s.title || "");
+      form2.append("text", s.text || "");
+
+      const d2 = await apiFetch("/api/summarize/slide", { method: "POST", body: form2 });
+      renderSlideCard(d2.page, d2.title, d2.bullets || []);
     }
 
-    if (currentChat.title === "New Chat" && text.startsWith("🧾")) {
-      currentChat.title = "PPTX summary";
-      refreshChatList();
+    setProgress(100, "Done");
+    currentChat.title = file.name || "PPTX summary";
+
+    // Save summary to the selected course (if logged in and course selected)
+    const courseId = courseSelect ? courseSelect.value : null;
+    if (courseId && getToken()) {
+      try {
+        await apiFetch("/api/summaries", {
+          method: "POST",
+          body: JSON.stringify({
+            course_id: parseInt(courseId),
+            session_id: sessionId,
+            source_filename: file.name,
+            title: file.name.replace(/\.pptx$/i, ""),
+          }),
+        });
+        await loadSummaries();
+      } catch (saveErr) {
+        console.warn("Could not save summary to course:", saveErr.message);
+      }
     }
+
+    refreshChatList();
+    fileInput.value = "";
   } catch (err) {
-    const msg = `❌ ${err.message}`;
-    appendMessage(msg, "ai");
-    saveMessage(msg, "ai");
+    renderSlideCard("-", "Error", [err.message]);
+    fileInput.value = "";
   }
-}
-
-
-
-signupBtn.addEventListener("click", async () => {
-  if (!isSignupMode) {
-    isSignupMode = true;
-    authNameInput.style.display = "block";
-    authNameInput.focus();
-    return;
-  }
-
-  await registerUser();
-});
-
-loginBtn.addEventListener("click", async () => {
-  isSignupMode = false;
-  authNameInput.style.display = "none";
-  await loginUser();
-});
-
-logoutBtn.addEventListener("click", logoutUser);
-createCourseBtn.addEventListener("click", handleCreateCourse);
-courseSelect.addEventListener("change", () => {
-    setSelectedCourse(courseSelect.value);
-    loadAssignments(selectedCourseId);
-    loadQuizzes(selectedCourseId);
-});
-
-newChatBtn.addEventListener("click", () => {
-  currentChat = { id: Date.now(), title: "New Chat", messages: [] };
-  sessionId = null;
-  messagesDiv.innerHTML = "";
 });
 
 sendBtn.addEventListener("click", sendMessage);
 userInput.addEventListener("keypress", (e) => {
   if (e.key === "Enter") sendMessage();
 });
-themeToggle.addEventListener("click", () => {
-  document.body.classList.toggle("dark");
-  const mode = document.body.classList.contains("dark") ? "dark" : "light";
-  localStorage.setItem("als_theme", mode);
+
+newChatBtn.addEventListener("click", () => {
+  currentChat = { id: Date.now(), title: "New Chat", messages: [] };
+  sessionId = null;
+  lectureText = "";
+  messagesDiv.innerHTML = "";
+  refreshChatList();
 });
 
-async function init() {
-  await refreshAuthState();
-  await fetchCourses();
-  updateAuthUI();
-  refreshChatList();
-}
+// Auth: register
+registerBtn.addEventListener("click", async () => {
+  setAuthBusy(true);
+  try {
+    const full_name = authNameInput.value.trim();
+    const email = authEmailInput.value.trim();
+    const password = authPasswordInput.value;
 
-init();
+    if (!email || !password) throw new Error("Email and password are required.");
+
+    await apiFetch("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ full_name, email, password }),
+    });
+
+    const tok = await apiFetch("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+
+    setToken(tok.access_token);
+    await loadCourses();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    setAuthBusy(false);
+  }
+});
 
 
+loginBtn.addEventListener("click", async () => {
+  setAuthBusy(true);
+  try {
+    const email = authEmailInput.value.trim();
+    const password = authPasswordInput.value;
+
+    if (!email || !password) throw new Error("Email and password are required.");
+
+    const tok = await apiFetch("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+
+    setToken(tok.access_token);
+    await loadCourses();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    setAuthBusy(false);
+  }
+});
+
+
+logoutBtn.addEventListener("click", async () => {
+  setAuthBusy(true);
+  try {
+    setToken(null);
+    setGuestUI();
+
+
+    courseSelect.innerHTML = "";
+    summaryList.innerHTML = "";
+    assignmentList.innerHTML = "";
+    quizList.innerHTML = "";
+    summaryEmpty.classList.remove("hidden");
+    assignmentEmpty.classList.remove("hidden");
+    quizEmpty.classList.remove("hidden");
+  } finally {
+    setAuthBusy(false);
+  }
+});
+
+
+themeToggle.addEventListener("click", () => {
+  document.body.classList.toggle("dark");
+  themeToggle.textContent = document.body.classList.contains("dark") ? "Light" : "Dark";
+});
+
+
+createCourseBtn.addEventListener("click", async () => {
+  try {
+    const name = courseNameInput.value.trim();
+    const subject = courseSubjectInput.value.trim();
+    if (!name) throw new Error("Course name is required.");
+
+    await apiFetch("/api/courses", {
+      method: "POST",
+      body: JSON.stringify({ name, subject }),
+    });
+
+    courseNameInput.value = "";
+    courseSubjectInput.value = "";
+    await loadCourses();
+  } catch (e) {
+    alert(e.message);
+  }
+});
+
+courseSelect.addEventListener("change", async () => {
+  await loadSummaries();
+  await loadAssignments();
+  await loadQuizzes();
+});
+
+// Init
+refreshChatList();
+refreshMe().then((me) => {
+  if (me) loadCourses();
+});

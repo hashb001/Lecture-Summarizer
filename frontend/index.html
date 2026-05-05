@@ -1,146 +1,134 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Lecture Summarizer</title>
   <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="icon" href="/static/favicon.ico">
 </head>
 
 <body>
   <div id="app">
 
-    <!-- ========================================================= -->
-    <!--                         SIDEBAR                           -->
-    <!-- ========================================================= -->
+
     <aside id="sidebar">
 
-      <!-- ===================== AUTH PANEL ===================== -->
-      <div id="authPanel">
-        <p id="authStatus">
-          <strong>Guest mode (sign in to save summaries)</strong>
-        </p>
+      <!-- Brand -->
+      <div class="sidebar-brand">
+        <div class="brand-icon">📖</div>
+        <div class="brand-text">
+          Lecture Summarizer
+          <span>AI Summarizer</span>
+        </div>
+      </div>
 
-        <div id="authFields">
-          <input
-            type="text"
-            id="authName"
-            placeholder="Full name (sign up)"
-            autocomplete="off"
-          />
+      <!-- Scrollable body -->
+      <div class="sidebar-body">
 
-          <input
-            type="email"
-            id="authEmail"
-            placeholder="Email"
-            autocomplete="off"
-            name="login-email"
-          />
 
-          <input
-            type="password"
-            id="authPassword"
-            placeholder="Password"
-            autocomplete="new-password"
-            name="login-password"
-          />
+        <div id="authPanel" class="card">
+          <p id="authStatus">
+            <strong>Guest mode</strong>
+            Sign in to save summaries
+          </p>
 
-          <div class="btn-row">
-            <button id="signupBtn" type="button">Sign up</button>
-            <button id="loginBtn" type="button">Log in</button>
+          <div id="authFields">
+            <input type="text" id="authName" placeholder="Full name (sign up)" autocomplete="off" />
+            <input type="email" id="authEmail" placeholder="Email" autocomplete="off" name="login-email" />
+            <input type="password" id="authPassword" placeholder="Password" autocomplete="new-password"
+              name="login-password" />
+
+            <div class="btn-row">
+              <button id="registerBtn" type="button">Sign up</button>
+              <button id="loginBtn" type="button">Log in</button>
+            </div>
+          </div>
+
+          <button id="logoutBtn" class="hidden" type="button">Log out</button>
+        </div>
+
+
+
+        <div id="coursePanel" class="card hidden">
+
+          <div class="panel-header">
+            <h3>Courses</h3>
+          </div>
+
+          <select id="courseSelect">
+            <option value="">No courses yet</option>
+          </select>
+
+          <div class="course-create">
+            <input id="courseName" placeholder="Course name (e.g. History)" />
+            <input id="courseSubject" placeholder="Subject (optional)" />
+            <button id="createCourseBtn">Add course</button>
+          </div>
+
+          <div class="summary-section">
+            <p class="section-label">Saved Summaries</p>
+            <ul id="summaryList"></ul>
+            <p id="summaryEmpty">Pick a course to see saved summaries.</p>
+          </div>
+
+          <div class="assignment-section">
+            <p class="section-label">Assignments</p>
+            <ul id="assignmentList"></ul>
+            <p id="assignmentEmpty">No assignments yet.</p>
+          </div>
+
+          <div class="quiz-section">
+            <p class="section-label">Quizzes</p>
+            <ul id="quizList"></ul>
+            <p id="quizEmpty">No quizzes yet.</p>
           </div>
         </div>
 
-        <button id="logoutBtn" class="hidden" type="button">Log out</button>
+      </div><!-- /sidebar-body -->
+
+
+      <div class="sidebar-history">
+        <div class="sidebar-header">
+          <h2>Chat History</h2>
+          <button id="newChatBtn" title="New chat">+</button>
+        </div>
+        <ul id="chatHistory"></ul>
       </div>
 
-
-      <!-- ===================== COURSES PANEL ===================== -->
-      <div id="coursePanel" class="hidden">
-
-        <div class="panel-header">
-          <h3>Courses</h3>
-        </div>
-
-        <!-- COURSE SELECT -->
-        <select id="courseSelect">
-          <option value="">No courses yet</option>
-        </select>
-
-        <!-- CREATE COURSE -->
-        <div class="course-create">
-          <input id="courseName" placeholder="Course name (e.g. History)" />
-          <input id="courseSubject" placeholder="Subject (optional)" />
-          <button id="createCourseBtn">Add course</button>
-        </div>
-
-        <!-- SUMMARIES -->
-        <div class="summary-section">
-          <p id="summaryHeader">Saved Summaries</p>
-          <ul id="summaryList"></ul>
-          <p id="summaryEmpty">Pick a course to see saved summaries.</p>
-        </div>
-
-        <!-- ASSIGNMENTS -->
-        <div class="assignment-section">
-          <p class="section-label">Assignments</p>
-          <ul id="assignmentList"></ul>
-          <p id="assignmentEmpty">No assignments yet.</p>
-        </div>
-
-        <!-- QUIZZES -->
-        <div class="quiz-section">
-          <p class="section-label">Quizzes</p>
-          <ul id="quizList"></ul>
-          <p id="quizEmpty">No quizzes yet.</p>
-        </div>
-      </div>
-
-
-      <!-- ===================== CHAT HISTORY ===================== -->
-      <div class="sidebar-header">
-        <h2>Chat History</h2>
-        <button id="newChatBtn">+</button>
-      </div>
-
-      <ul id="chatHistory"></ul>
     </aside>
 
 
 
-    <!-- ========================================================= -->
-    <!--                         MAIN AREA                         -->
-    <!-- ========================================================= -->
+
     <main id="main">
 
-      <!-- ======================== HEADER ======================== -->
+
       <header>
+        <div style="width:64px"></div><!-- spacer to center title -->
         <h1>AI Lecture Summarizer</h1>
-        <button id="themeToggle">Theme</button>
+        <button id="themeToggle">Dark</button>
       </header>
 
-      <!-- ======================= PROGRESS BAR ======================= -->
+
       <div id="progress" class="hidden">
         <div id="progress-bar"></div>
         <span id="progress-text"></span>
       </div>
 
-      <!-- ======================= CHAT AREA ======================= -->
+
       <div id="chat-container">
         <div id="messages"></div>
       </div>
 
-      <!-- ======================= INPUT AREA ======================= -->
+
       <div id="input-area">
-        <label for="fileInput" id="uploadLabel">📎</label>
+        <label for="fileInput" id="uploadLabel" title="Upload .pptx">📎</label>
         <input type="file" id="fileInput" accept=".pptx" hidden />
 
-        <input
-          id="userInput"
-          type="text"
-          placeholder="Type your message..."
-          autocomplete="off"
-        />
+        <input id="userInput" type="text" placeholder="Ask about a slide, or type 'generate quiz'…"
+          autocomplete="off" />
 
         <button id="sendBtn">Send</button>
       </div>
@@ -150,4 +138,5 @@
 
   <script src="/static/app.js"></script>
 </body>
+
 </html>

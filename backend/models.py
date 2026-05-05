@@ -72,18 +72,34 @@ class LectureSession(Base):
 class Assignment(Base):
     __tablename__ = "assignments"
 
-    id = Column(Integer, primary_key=True)
-    course_id = Column(Integer, ForeignKey("courses.id"))
-    title = Column(String)
-    content = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(
+        Integer, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    course = relationship("Course")
+    user = relationship("User")
 
 
 class Quiz(Base):
     __tablename__ = "quizzes"
 
-    id = Column(Integer, primary_key=True)
-    course_id = Column(Integer, ForeignKey("courses.id"))
-    title = Column(String)
-    content = Column(Text)   # store as text or JSON
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(
+        Integer, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)  # store as text or JSON
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    course = relationship("Course")
+    user = relationship("User")

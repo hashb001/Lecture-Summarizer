@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class TokenResponse(BaseModel):
@@ -27,8 +27,7 @@ class UserOut(UserBase):
     id: int
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CourseBase(BaseModel):
@@ -44,8 +43,7 @@ class CourseOut(CourseBase):
     id: int
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SummaryCreate(BaseModel):
@@ -65,6 +63,26 @@ class SummaryOut(BaseModel):
     slides_payload: Optional[Any]
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
+
+class AssignmentOut(BaseModel):
+    id: int
+    course_id: int
+    user_id: int
+    title: str
+    content: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class QuizOut(BaseModel):
+    id: int
+    course_id: int
+    user_id: int
+    title: str
+    content: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
