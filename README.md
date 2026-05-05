@@ -1,4 +1,4 @@
-# 📖 LectureMind — AI Lecture Summarizer
+# 📖 Lecture Sumamarizer — AI Lecture Summarizer
 
 > Upload a PowerPoint lecture. Get instant AI summaries, ask questions, generate quizzes and assignments — all in one place.
 
@@ -12,7 +12,7 @@
 
 ## 🎯 What is this?
 
-LectureMind is a full-stack AI web application that helps students study smarter. Instead of reading through a 40-slide PowerPoint manually, you upload the file and the app does the hard work — summarizing every slide, answering your questions, and generating quizzes to test your understanding.
+Lecture Summarizer is a full-stack AI web application that helps students study smarter. Instead of reading through a 40-slide PowerPoint manually, you upload the file and the app does the hard work — summarizing every slide, answering your questions, and generating quizzes to test your understanding.
 
 **[🌐 View Live Demo Page](https://hashb001.github.io/Lecture-Summarizer/)** &nbsp;|&nbsp; **[▶ Watch Video Demo](https://www.youtube.com/watch?v=cfCr7p1rOkE)**
 
