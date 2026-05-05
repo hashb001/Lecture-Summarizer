@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lecture Summarizer — AI Lecture Summarizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;1,9..144,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap"
+    rel="stylesheet">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --ink: #0e0c0a;
+      --paper: #f5f0e8;
+      --cream: #ede7d9;
+      --rust: #b84a2e;
+      --rust-light: rgba(184, 74, 46, 0.1);
+      --gold: #c9952a;
+      --muted: #7a6f63;
+      --border: rgba(14, 12, 10, 0.1);
+      --shadow: 0 8px 40px rgba(14, 12, 10, 0.1);
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.65;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 999;
+      opacity: 0.6;
+    }
+
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 48px;
+      background: rgba(245, 240, 232, 0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-logo span {
+      color: var(--rust);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+    }
+
+    .nav-links a {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--ink);
+    }
+
+    .nav-cta {
+      background: var(--rust) !important;
+      color: #fff !important;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-weight: 500 !important;
+    }
+
+    .nav-cta:hover {
+      opacity: 0.85 !important;
+    }
+
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 120px 24px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      border: 1px solid rgba(184, 74, 46, 0.12);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--rust-light);
+      border: 1px solid rgba(184, 74, 46, 0.2);
+      color: var(--rust);
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 16px;
+      border-radius: 100px;
+      margin-bottom: 28px;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .hero h1 {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: clamp(3rem, 7vw, 6rem);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+      max-width: 820px;
+      animation: fadeUp 0.6s 0.1s ease both;
+    }
+
+    .hero h1 em {
+      font-style: italic;
+      font-weight: 300;
+      color: var(--rust);
+    }
+
+    .hero-sub {
+      font-size: 1.1rem;
+      color: var(--muted);
+      max-width: 540px;
+      margin: 24px auto 0;
+      font-weight: 300;
+      animation: fadeUp 0.6s 0.2s ease both;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: center;
+      margin-top: 44px;
+      flex-wrap: wrap;
+      animation: fadeUp 0.6s 0.3s ease both;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--rust);
+      color: #fff;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 0.95rem;
+      text-decoration: none;
+      transition: opacity 0.2s, transform 0.15s;
+      box-shadow: 0 4px 20px rgba(184, 74, 46, 0.3);
+    }
+
+    .btn-primary:hover {
+      opacity: 0.88;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      color: var(--ink);
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-weight: 400;
+      font-size: 0.95rem;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--ink);
+      background: rgba(14, 12, 10, 0.03);
+    }
+
+    .demo-wrap {
+      padding: 0 24px 100px;
+      display: flex;
+      justify-content: center;
+      animation: fadeUp 0.7s 0.4s ease both;
+    }
+
+    .demo-window {
+      width: 100%;
+      max-width: 900px;
+      background: #1a1412;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(14, 12, 10, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    .demo-titlebar {
+      background: #252018;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .dot-r {
+      background: #ff5f57;
+    }
+
+    .dot-y {
+      background: #febc2e;
+    }
+
+    .dot-g {
+      background: #28c840;
+    }
+
+    .demo-url {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.35);
+      margin-left: 12px;
+      font-family: monospace;
+    }
+
+    .demo-content {
+      display: flex;
+      height: 440px;
+    }
+
+    .demo-sidebar {
+      width: 190px;
+      background: #141210;
+      border-right: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 14px 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .demo-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      margin-bottom: 5px;
+    }
+
+    .demo-brand-icon {
+      width: 26px;
+      height: 26px;
+      background: linear-gradient(135deg, #e8825a, #c4603a);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    .demo-brand-name {
+      font-size: 0.73rem;
+      color: rgba(255, 255, 255, 0.7);
+      font-weight: 500;
+    }
+
+    .demo-section-label {
+      font-size: 0.58rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(255, 255, 255, 0.22);
+      padding: 7px 3px 3px;
+    }
+
+    .demo-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 0.68rem;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .demo-item.active {
+      background: rgba(232, 130, 90, 0.12);
+      border-color: rgba(232, 130, 90, 0.25);
+      color: #e8825a;
+    }
+
+    .demo-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .demo-header {
+      padding: 11px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.78rem;
+      color: rgba(255, 255, 255, 0.45);
+      font-family: 'Fraunces', serif;
+      font-style: italic;
+    }
+
+    .demo-messages {
+      flex: 1;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      overflow: hidden;
+    }
+
+    .demo-slide {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 10px;
+      padding: 11px 13px;
+    }
+
+    .demo-slide-title {
+      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.68);
+      font-family: 'Fraunces', serif;
+      margin-bottom: 5px;
+    }
+
+    .demo-bullet {
+      font-size: 0.63rem;
+      color: rgba(255, 255, 255, 0.36);
+      padding-left: 10px;
+      position: relative;
+      margin: 3px 0;
+    }
+
+    .demo-bullet::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 5px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #e8825a;
+      opacity: 0.5;
+    }
+
+    .demo-msg-user {
+      align-self: flex-end;
+      background: #b84a2e;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 0.68rem;
+      padding: 7px 11px;
+      border-radius: 10px 10px 3px 10px;
+      max-width: 60%;
+    }
+
+    .demo-msg-ai {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 0.68rem;
+      padding: 7px 11px;
+      border-radius: 10px 10px 10px 3px;
+      max-width: 72%;
+      line-height: 1.55;
+    }
+
+    .demo-input-bar {
+      padding: 10px 13px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .demo-input {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 100px;
+      height: 30px;
+      padding: 0 11px;
+      font-size: 0.65rem;
+      color: rgba(255, 255, 255, 0.28);
+    }
+
+    .demo-send {
+      background: #b84a2e;
+      color: #fff;
+      border: none;
+      border-radius: 100px;
+      padding: 0 13px;
+      height: 30px;
+      font-size: 0.68rem;
+    }
+
+    section {
+      padding: 100px 24px;
+    }
+
+    .section-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--rust);
+      font-weight: 500;
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--ink);
+      max-width: 600px;
+      margin-bottom: 20px;
+    }
+
+    .section-title em {
+      font-style: italic;
+      font-weight: 300;
+      color: var(--rust);
+    }
+
+    .section-sub {
+      font-size: 1rem;
+      color: var(--muted);
+      max-width: 500px;
+      font-weight: 300;
+      line-height: 1.7;
+    }
+
+    #features {
+      background: var(--cream);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-top: 56px;
+    }
+
+    .feature-card {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow);
+    }
+
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--rust-light);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+
+    .feature-card h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0;
+      margin-top: 60px;
+      position: relative;
+    }
+
+    .steps::before {
+      content: '';
+      position: absolute;
+      top: 28px;
+      left: 14%;
+      right: 14%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--rust), transparent);
+      opacity: 0.3;
+    }
+
+    .step {
+      text-align: center;
+      padding: 0 24px;
+    }
+
+    .step-num {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--paper);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Fraunces', serif;
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--rust);
+      margin: 0 auto 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step h4 {
+      font-family: 'Fraunces', serif;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .step p {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    #tech {
+      background: var(--cream);
+    }
+
+    .tech-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 44px;
+    }
+
+    .tech-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 8px 18px;
+      font-size: 0.85rem;
+      color: var(--ink);
+      transition: border-color 0.2s;
+    }
+
+    .tech-pill:hover {
+      border-color: var(--rust);
+    }
+
+    .tech-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--rust);
+      opacity: 0.6;
+    }
+
+    .video-wrap {
+      margin-top: 56px;
+      background: var(--ink);
+      border-radius: 16px;
+      overflow: hidden;
+      aspect-ratio: 16/9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      position: relative;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .video-placeholder {
+      text-align: center;
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .play-btn {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: var(--rust);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 24px;
+      box-shadow: 0 8px 32px rgba(184, 74, 46, 0.5);
+      transition: transform 0.2s;
+    }
+
+    .video-wrap:hover .play-btn {
+      transform: scale(1.08);
+    }
+
+    .video-label {
+      font-size: 0.85rem;
+      letter-spacing: 0.04em;
+    }
+
+    .star-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 56px;
+    }
+
+    .star-card {
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .star-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+
+    .star-s::before {
+      background: #e8825a;
+    }
+
+    .star-t::before {
+      background: var(--gold);
+    }
+
+    .star-a::before {
+      background: var(--rust);
+    }
+
+    .star-r::before {
+      background: #5a8ae8;
+    }
+
+    .star-letter {
+      font-family: 'Fraunces', serif;
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 10px;
+    }
+
+    .star-s .star-letter {
+      color: #e8825a;
+    }
+
+    .star-t .star-letter {
+      color: var(--gold);
+    }
+
+    .star-a .star-letter {
+      color: var(--rust);
+    }
+
+    .star-r .star-letter {
+      color: #5a8ae8;
+    }
+
+    .star-card h4 {
+      font-size: 0.85rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 10px;
+      color: var(--muted);
+    }
+
+    .star-card p {
+      font-size: 0.875rem;
+      color: var(--ink);
+      line-height: 1.65;
+    }
+
+    footer {
+      background: var(--ink);
+      color: rgba(255, 255, 255, 0.5);
+      padding: 60px 24px;
+      text-align: center;
+    }
+
+    .footer-logo {
+      font-family: 'Fraunces', serif;
+      font-size: 1.6rem;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+
+    .footer-logo span {
+      color: #e8825a;
+    }
+
+    footer p {
+      font-size: 0.85rem;
+      margin-bottom: 28px;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      color: rgba(255, 255, 255, 0.4);
+      text-decoration: none;
+      font-size: 0.82rem;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: #e8825a;
+    }
+
+    .footer-copy {
+      margin-top: 40px;
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.18);
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 768px) {
+      nav {
+        padding: 14px 20px;
+      }
+
+      .hero {
+        padding: 100px 20px 60px;
+      }
+
+      section {
+        padding: 70px 20px;
+      }
+
+      .steps::before {
+        display: none;
+      }
+
+      .demo-sidebar {
+        display: none;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .nav-links a:not(.nav-cta) {
+        display: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <nav>
+    <a href="#" class="nav-logo">Lecture<span>Mind</span></a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#challenges">Challenges</a>
+      <a href="YOUR_VIDEO_LINK_HERE" target="_blank" class="nav-cta">▶ Watch Demo</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-badge">🎓 Final Year Project &nbsp;·&nbsp; AI × Education</div>
+    <h1>Turn any lecture into <em>instant</em> understanding</h1>
+    <p class="hero-sub">Upload a PowerPoint, get AI-powered slide summaries, ask questions, generate quizzes and
+      assignments — all in one place.</p>
+    <div class="hero-actions">
+      <a href="YOUR_GITHUB_REPO_LINK_HERE" target="_blank" class="btn-primary">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+          <path
+            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+        </svg>
+        View on GitHub
+      </a>
+      <a href="YOUR_VIDEO_LINK_HERE" target="_blank" class="btn-secondary">▶ &nbsp;Watch Demo</a>
+    </div>
+  </section>
+
+  <div class="demo-wrap">
+    <div class="demo-window">
+      <div class="demo-titlebar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <div class="demo-url">localhost:8000 — AI Lecture Summarizer</div>
+      </div>
+      <div class="demo-content">
+        <div class="demo-sidebar">
+          <div class="demo-brand">
+            <div class="demo-brand-icon">📖</div>
+            <div class="demo-brand-name">LectureMind</div>
+          </div>
+          <div class="demo-section-label">Courses</div>
+          <div class="demo-item active">📚 Machine Learning</div>
+          <div class="demo-item">🧪 Data Science</div>
+          <div class="demo-section-label">Saved</div>
+          <div class="demo-item">Week 3 — Neural Nets</div>
+          <div class="demo-item">Week 2 — Regression</div>
+          <div class="demo-section-label">Chat History</div>
+          <div class="demo-item active">lecture_week3.pptx</div>
+        </div>
+        <div class="demo-main">
+          <div class="demo-header">AI Lecture Summarizer</div>
+          <div class="demo-messages">
+            <div class="demo-slide">
+              <div class="demo-slide-title">📑 Slide 3: Backpropagation</div>
+              <div class="demo-bullet">Gradient descent updates weights layer by layer</div>
+              <div class="demo-bullet">Chain rule propagates error from output to input</div>
+              <div class="demo-bullet">Learning rate controls step size during optimization</div>
+            </div>
+            <div class="demo-msg-user">Explain slide 3 in simple terms</div>
+            <div class="demo-msg-ai">Backpropagation is how a neural network learns from its mistakes. After each
+              prediction, it works backwards adjusting weights to improve next time.</div>
+          </div>
+          <div class="demo-input-bar">
+            <div class="demo-input">Ask about any slide…</div>
+            <button class="demo-send">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="section-inner">
+      <div class="section-label">What it does</div>
+      <h2 class="section-title">Everything a student needs, <em>automated</em></h2>
+      <p class="section-sub">LectureMind turns passive slide decks into an active learning experience powered by AI.</p>
+      <div class="features-grid reveal">
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Slide Summarization</h3>
+          <p>Upload any .pptx and get bullet-point summaries for every slide using a HuggingFace DistilBART model.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">💬</div>
+          <h3>Contextual Q&A</h3>
+          <p>Ask questions about any slide or the full lecture. The AI answers using only your lecture content — no
+            hallucinations.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📝</div>
+          <h3>Quiz Generation</h3>
+          <p>Auto-generate multiple-choice and short-answer quizzes based on the lecture material to test comprehension.
+          </p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📘</div>
+          <h3>Assignment Creation</h3>
+          <p>Generate structured university-level assignments with short answer, analytical, and application questions.
+          </p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🗂️</div>
+          <h3>Course Management</h3>
+          <p>Organize summaries by course. Save your lecture history, revisit past summaries, and track assignments and
+            quizzes.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔒</div>
+          <h3>Secure Auth</h3>
+          <p>JWT-based authentication with bcrypt password hashing. Guest mode available for quick use without an
+            account.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="section-inner">
+      <div class="section-label">How it works</div>
+      <h2 class="section-title">From slides to <em>knowledge</em> in seconds</h2>
+      <div class="steps reveal">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h4>Upload your PPTX</h4>
+          <p>Drag and drop your lecture file. Text is extracted from every shape, table, and text frame.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h4>AI summarizes</h4>
+          <p>Each slide is processed by DistilBART and condensed into clear, readable bullet points.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h4>Ask anything</h4>
+          <p>Chat with your lecture. Ask about specific slides or general concepts — grounded in your content only.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <h4>Generate & save</h4>
+          <p>Create quizzes and assignments, save summaries to your course, and revisit anytime.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background:var(--cream); padding-top:100px; padding-bottom:100px;">
+    <div class="section-inner">
+      <div class="section-label">Demo</div>
+      <h2 class="section-title">See it in <em>action</em></h2>
+      <p class="section-sub">A walkthrough of uploading a lecture, getting summaries, and generating a quiz.</p>
+      <a href="YOUR_VIDEO_LINK_HERE" target="_blank" style="text-decoration:none;">
+        <div class="video-wrap reveal">
+          <div class="video-placeholder">
+            <div class="play-btn">▶</div>
+            <div class="video-label">Click to watch the demo</div>
+          </div>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <section id="tech">
+    <div class="section-inner">
+      <div class="section-label">Tech stack</div>
+      <h2 class="section-title">Built with <em>modern</em> tools</h2>
+      <p class="section-sub">A full-stack Python application combining fast APIs, AI models, and a clean vanilla JS
+        frontend.</p>
+      <div class="tech-grid reveal">
+        <div class="tech-pill"><span class="tech-dot"></span>FastAPI</div>
+        <div class="tech-pill"><span class="tech-dot"></span>PostgreSQL</div>
+        <div class="tech-pill"><span class="tech-dot"></span>SQLAlchemy</div>
+        <div class="tech-pill"><span class="tech-dot"></span>HuggingFace Transformers</div>
+        <div class="tech-pill"><span class="tech-dot"></span>DistilBART (Summarization)</div>
+        <div class="tech-pill"><span class="tech-dot"></span>Flan-T5 (Q&amp;A)</div>
+        <div class="tech-pill"><span class="tech-dot"></span>OpenAI GPT-4o-mini (fallback)</div>
+        <div class="tech-pill"><span class="tech-dot"></span>python-pptx</div>
+        <div class="tech-pill"><span class="tech-dot"></span>JWT Auth</div>
+        <div class="tech-pill"><span class="tech-dot"></span>bcrypt</div>
+        <div class="tech-pill"><span class="tech-dot"></span>Docker</div>
+        <div class="tech-pill"><span class="tech-dot"></span>Vanilla JS</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="challenges">
+    <div class="section-inner">
+      <div class="section-label">Technical Report — STAR Format</div>
+      <h2 class="section-title">Challenges I <em>faced</em></h2>
+      <p class="section-sub">A structured reflection on the key technical and design challenges encountered during
+        development.</p>
+      <div class="star-grid reveal">
+        <div class="star-card star-s">
+          <div class="star-letter">S</div>
+          <h4>Situation</h4>
+          <p>Students often receive large PowerPoint lecture files but lack time to read every slide thoroughly.
+            Existing tools either required expensive API subscriptions or produced low-quality summaries that missed key
+            concepts. I needed a self-hosted solution that could intelligently extract and condense lecture content.</p>
+        </div>
+        <div class="star-card star-t">
+          <div class="star-letter">T</div>
+          <h4>Task</h4>
+          <p>Build a full-stack AI application that extracts text from .pptx files, summarizes each slide using a local
+            AI model, supports contextual Q&A grounded in the lecture content, and allows users to organize summaries by
+            course — without requiring an external API key.</p>
+        </div>
+        <div class="star-card star-a">
+          <div class="star-letter">A</div>
+          <h4>Action</h4>
+          <p>Integrated HuggingFace's DistilBART model with careful token-length management to avoid truncation errors.
+            Built a keyword-based slide retrieval system so the Q&A model receives only the most relevant context.
+            Implemented dual-mode auth (guest vs. logged in) and a session persistence layer using PostgreSQL that
+            survives server restarts.</p>
+        </div>
+        <div class="star-card star-r">
+          <div class="star-letter">R</div>
+          <h4>Result</h4>
+          <p>The application successfully summarizes multi-slide presentations in under 30 seconds locally, generates
+            relevant quizzes and assignments, and persists all user data reliably. The modular design allowed easy
+            integration of an OpenAI fallback without changing core application logic.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-logo">Lecture<span>Mind</span></div>
+    <p>An AI-powered lecture summarizer built as a final year project. Open source and free to use.</p>
+    <div class="footer-links">
+      <a href="YOUR_GITHUB_REPO_LINK_HERE" target="_blank">GitHub Repository</a>
+      <a href="YOUR_VIDEO_LINK_HERE" target="_blank">Demo Video</a>
+      <a href="mailto:YOUR_EMAIL_HERE">Contact</a>
+    </div>
+    <div class="footer-copy">Built with FastAPI · HuggingFace · PostgreSQL · Vanilla JS</div>
+  </footer>
+
+  <script>
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((e, i) => {
+        if (e.isIntersecting) {
+          setTimeout(() => e.target.classList.add('visible'), i * 80);
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    reveals.forEach(el => observer.observe(el));
+  </script>
+</body>
+
+</html>
