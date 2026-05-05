@@ -14,7 +14,7 @@
 
 LectureMind is a full-stack AI web application that helps students study smarter. Instead of reading through a 40-slide PowerPoint manually, you upload the file and the app does the hard work — summarizing every slide, answering your questions, and generating quizzes to test your understanding.
 
-**[🌐 View Live Demo Page](https://github.com/hashb001/Lecture-Summarizer)** &nbsp;|&nbsp; **[▶ Watch Video Demo](https://youtu.be/cfCr7p1rOkE)**
+**[🌐 View Live Demo Page](https://hashb001.github.io/Lecture-Summarizer/)** &nbsp;|&nbsp; **[▶ Watch Video Demo](https://www.youtube.com/watch?v=cfCr7p1rOkE)**
 
 ---
 
@@ -176,6 +176,6 @@ MIT License — free to use, modify, and distribute.
 
 <div align="center">
   Built with ❤️ as a Final Year Project &nbsp;|&nbsp;
-  <a href="https://github.com/hashb001/Lecture-Summarizer">Live Page</a> &nbsp;|&nbsp;
-  <a href="https://youtu.be/cfCr7p1rOkE">Video Demo</a>
+  <a href="https://hashb001.github.io/Lecture-Summarizer/">Live Page</a> &nbsp;|&nbsp;
+  <a href="https://www.youtube.com/watch?v=cfCr7p1rOkE">Video Demo</a>
 </div>
